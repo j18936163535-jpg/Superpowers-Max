@@ -8,6 +8,13 @@ with a `-max` suffix to mark fork identity.
 
 ## [Unreleased]
 
+### Added
+- `tests/evals/` — 42 behavior test cases (3 per skill) with schema check (`runner.sh`)
+- `.pre-commit-config.yaml` — runs `audit-skills.sh` + `scripts/check-banned-phrases.sh` pre-commit
+- `.github/workflows/ci.yml` — runs audit + TDD tests + evals + banned-phrase check on every PR
+- `scripts/check-banned-phrases.sh` — pre-commit/CI body-only banned-phrase scanner
+- `docs/retro/TEMPLATE.md` — monthly retro template for the 4th layer of hard constraints (实战)
+
 ## [1.0.0-max] - 2026-08-15
 
 ### Added
