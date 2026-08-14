@@ -1,0 +1,7 @@
+# Test Skill
+<SEARCH_DISCIPLINE>
+OLD CONTENT TO BE REPLACED
+</SEARCH_DISCIPLINE>
+
+## Body
+Some content
