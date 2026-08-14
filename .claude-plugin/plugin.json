@@ -1,0 +1,8 @@
+{
+  "name": "superpowers-max",
+  "version": "0.1.0-max",
+  "description": "Superpowers skills with mandatory search discipline (anti-LLM-centrism)",
+  "author": "superpowers-max contributors",
+  "license": "MIT",
+  "skills": "./skills"
+}
