@@ -82,11 +82,17 @@ for skill_dir in "$SKILLS_DIR"/*/; do
   head -5 "$skill_md" | grep -qE "^name: " || missing+=("frontmatter:name")
   head -5 "$skill_md" | grep -qE "^description: " || missing+=("frontmatter:description")
 
+  # Check 6: at least 1 <SEARCH_GATE> block per skill (spec §7.1: N = steps × 50%, ≥1 if any steps)
+  gate_count=$(grep -c '<SEARCH_GATE' "$skill_md" || true)
+  if [ "$gate_count" -eq 0 ]; then
+    missing+=("gates=0")
+  fi
+
   if [ ${#missing[@]} -eq 0 ]; then
-    printf '%-40s %-6s %s\n' "$skill_name" "PASS" "9/9"
+    printf '%-40s %-6s %s\n' "$skill_name" "PASS" "gates=$gate_count 9/9"
     PASS=$((PASS+1))
   else
-    printf '%-40s %-6s %s\n' "$skill_name" "FAIL" "${missing[*]}"
+    printf '%-40s %-6s %s\n' "$skill_name" "FAIL" "gates=$gate_count ${missing[*]}"
     FAIL=$((FAIL+1))
   fi
 done
