@@ -1,6 +1,6 @@
 {
   "name": "superpowers-max",
-  "version": "0.1.0-max",
+  "version": "1.0.0-max",
   "description": "Superpowers skills with mandatory search discipline to compensate for LLM training-data gaps",
   "type": "module",
   "main": ".opencode/plugins/superpowers-max.js",
