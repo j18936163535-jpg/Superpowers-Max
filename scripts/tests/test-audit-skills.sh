@@ -91,6 +91,44 @@ build_fixture_with_shared_anchor \
   "$REPO_ROOT/scripts/tests/fixtures/audit-body-banned/SKILL.md" \
   "$TMPDIR/skills/body-banned-skill/SKILL.md"
 
+# --- DRIFT exit code 2 (Task 2) -----------------------------------------
+# Isolated repo: a SINGLE skill with a stale anchor (fixture ships with hard-
+# coded content that does NOT hash-match skills/_shared/) and a clean body.
+# No banned phrases, valid frontmatter, 1 <SEARCH_GATE>. Expected audit exit
+# code: 2 (DRIFT). The main $TMPDIR repo also has skills that fail with FAIL
+# (exit 1), so we can't test DRIFT exit code in the combined run — FAIL would
+# dominate. Hence the isolated sub-test below.
+DRIFT_TMP="$(mktemp -d)"
+mkdir -p "$DRIFT_TMP/skills/_shared"
+cp "$REPO_ROOT/skills/_shared/"*.md "$DRIFT_TMP/skills/_shared/"
+# The fixture's anchor has FIXTURE_ANCHOR_PLACEHOLDER + a stale-marker line.
+# We substitute the placeholder with the *current* _shared content (so all
+# 9 trigger/source/failure/output rules are present), then the stale-marker
+# line stays in the anchor, making its hash diverge from cat _shared/*.md.
+mkdir -p "$DRIFT_TMP/skills/drift-skill"
+build_fixture_with_shared_anchor \
+  "$REPO_ROOT/scripts/tests/fixtures/audit-drift/SKILL.md" \
+  "$DRIFT_TMP/skills/drift-skill/SKILL.md"
+drift_output="$(cd "$DRIFT_TMP" && SKILLS_DIR="$DRIFT_TMP/skills" "$SCRIPT" 2>&1)" && drift_rc=0 || drift_rc=$?
+rm -rf "$DRIFT_TMP"
+if [ "$drift_rc" -ne 2 ]; then
+  echo "FAIL: drift-only repo should exit 2 (DRIFT), got $drift_rc"
+  echo "$drift_output"
+  exit 1
+fi
+# Per-skill output line must mark this skill as DRIFT (not PASS, not FAIL).
+if ! echo "$drift_output" | grep -E "drift-skill[[:space:]]+DRIFT" >/dev/null; then
+  echo "FAIL: drift-skill should be marked DRIFT (not PASS, not FAIL)"
+  echo "$drift_output"
+  exit 1
+fi
+# TOTAL line must print the DRIFT count.
+if ! echo "$drift_output" | grep -E "TOTAL:.*DRIFT:[[:space:]]*1" >/dev/null; then
+  echo "FAIL: TOTAL line should print 'DRIFT: 1' for a single-drift repo"
+  echo "$drift_output"
+  exit 1
+fi
+
 # Run audit; expect exit 1 (some fail)
 output=$(cd "$TMPDIR" && SKILLS_DIR="$TMPDIR/skills" "$SCRIPT" 2>&1) && rc=0 || rc=$?
 
