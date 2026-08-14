@@ -60,6 +60,37 @@ FIXTURE="$REPO_ROOT/scripts/tests/fixtures/audit-no-search-gate/SKILL.md"
   awk 'f{print} /FIXTURE_ANCHOR_PLACEHOLDER/{f=1}' "$FIXTURE"
 } > "$TMPDIR/skills/no-search-gate-skill/SKILL.md"
 
+# Helper: substitute the shared anchor into a FIXTURE_ANCHOR_PLACEHOLDER fixture.
+build_fixture_with_shared_anchor() {
+  local src="$1" dst="$2"
+  {
+    awk '/FIXTURE_ANCHOR_PLACEHOLDER/{exit} {print}' "$src"
+    cat "$REPO_ROOT/skills/_shared/triggers.md" \
+        "$REPO_ROOT/skills/_shared/source-quality.md" \
+        "$REPO_ROOT/skills/_shared/output-format.md" \
+        "$REPO_ROOT/skills/_shared/failure-modes.md"
+    awk 'f{print} /FIXTURE_ANCHOR_PLACEHOLDER/{f=1}' "$src"
+  } > "$dst"
+}
+
+# drift-clean fixture: full anchor (from _shared), 1 <SEARCH_GATE>, clean body.
+# Exercises BOTH the drift fix (anchor content must hash-match _shared) AND
+# the anchor-banned-phrase fix (anchor contains "目前" / "现在主流" / "一般来说"
+# as documented examples — the audit must ignore the anchor for banned-phrase).
+# Expected: PASS.
+mkdir -p "$TMPDIR/skills/drift-clean-skill"
+build_fixture_with_shared_anchor \
+  "$REPO_ROOT/scripts/tests/fixtures/audit-drift-clean/SKILL.md" \
+  "$TMPDIR/skills/drift-clean-skill/SKILL.md"
+
+# body-banned fixture: full anchor (clean per the drift fix), 1 <SEARCH_GATE>,
+# body contains the banned phrase "目前". Expected: FAIL with "banned:目前"
+# ONLY (no drift, no other banned phrases, no other missing items).
+mkdir -p "$TMPDIR/skills/body-banned-skill"
+build_fixture_with_shared_anchor \
+  "$REPO_ROOT/scripts/tests/fixtures/audit-body-banned/SKILL.md" \
+  "$TMPDIR/skills/body-banned-skill/SKILL.md"
+
 # Run audit; expect exit 1 (some fail)
 output=$(cd "$TMPDIR" && SKILLS_DIR="$TMPDIR/skills" "$SCRIPT" 2>&1) && rc=0 || rc=$?
 
@@ -97,6 +128,42 @@ fi
 if ! echo "$output" | grep -qE "gates=[0-9]+"; then
   echo "FAIL: per-skill output should include 'gates=N'"
   echo "$output"
+  exit 1
+fi
+
+# --- Drift + anchor-banned-phrase fix (Task 1.5) -----------------------
+# drift-clean-skill has the full shared anchor (substituted at test time
+# from _shared/) and a clean body. It MUST pass audit, i.e.
+#   1. drift check must pass: anchor content (between tags, no tag lines,
+#      no flanking newlines) must hash-equal the cat-concat of _shared/*.md.
+#   2. banned-phrase check must ignore the anchor (the anchor contains
+#      "目前" / "现在主流" / "一般来说" as documented examples).
+# Before the fix, this skill fails with reasons including `drift` and
+# `banned:目前` etc.
+if ! echo "$output" | grep -E "drift-clean-skill[[:space:]]+PASS" >/dev/null; then
+  echo "FAIL: drift-clean-skill should be marked PASS (drift + anchor-banned fixes)"
+  echo "$output"
+  exit 1
+fi
+
+# body-banned-skill has a clean anchor and body containing "目前".
+# It MUST fail with "banned:目前" as the reason, and MUST NOT have "drift"
+# in the reason (proves the drift fix is also wired up — the anchor DOES
+# match _shared, so drift is clean, and the only failure is body banned).
+if ! echo "$output" | grep -E "body-banned-skill[[:space:]]+FAIL" >/dev/null; then
+  echo "FAIL: body-banned-skill should be marked FAIL"
+  echo "$output"
+  exit 1
+fi
+body_banned_line="$(echo "$output" | grep -E "body-banned-skill[[:space:]]+FAIL" || true)"
+if ! echo "$body_banned_line" | grep -qE "banned:目前"; then
+  echo "FAIL: body-banned-skill should fail with reason 'banned:目前'"
+  echo "$body_banned_line"
+  exit 1
+fi
+if echo "$body_banned_line" | grep -qE "(^|[[:space:]])drift([[:space:]]|$)"; then
+  echo "FAIL: body-banned-skill should NOT have 'drift' in reason (drift fix not wired up)"
+  echo "$body_banned_line"
   exit 1
 fi
 

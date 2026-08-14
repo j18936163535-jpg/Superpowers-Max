@@ -33,14 +33,34 @@ for skill_dir in "$SKILLS_DIR"/*/; do
   [ ! -f "$skill_md" ] && continue
   skill_name="$(basename "$skill_dir")"
 
-  # Extract anchor block
-  anchor_content="$(awk '/<SEARCH_DISCIPLINE>/,/<\/SEARCH_DISCIPLINE>/' "$skill_md" || true)"
+  # Extract anchor block (content BETWEEN <SEARCH_DISCIPLINE> tags, NOT including
+  # the tag lines themselves). Use anchored regex so the literal string
+  # "<SEARCH_DISCIPLINE>" inside the shared content (e.g. in a code reference
+  # like `` `<SEARCH_DISCIPLINE>` ``) does not false-trigger the boundary.
+  anchor_content="$(
+    awk '
+      /^<SEARCH_DISCIPLINE>$/ { flag = 1; next }
+      /^<\/SEARCH_DISCIPLINE>$/ { flag = 0; next }
+      flag
+    ' "$skill_md" || true
+  )"
 
   if [ -z "$anchor_content" ]; then
     printf '%-40s %-6s %s\n' "$skill_name" "FAIL" "missing <SEARCH_DISCIPLINE>"
     FAIL=$((FAIL+1))
     continue
   fi
+
+  # Body = everything OUTSIDE the anchor block. The banned-phrase check must
+  # run against the body only, because the shared content itself contains
+  # "目前" / "现在主流" / "一般来说" as documented examples of phrases to avoid.
+  body_content="$(
+    awk '
+      /^<SEARCH_DISCIPLINE>$/ { flag = 1; next }
+      /^<\/SEARCH_DISCIPLINE>$/ { flag = 0; next }
+      !flag
+    ' "$skill_md" || true
+  )"
 
   # Check 9 items
   missing=()
@@ -73,9 +93,9 @@ for skill_dir in "$SKILLS_DIR"/*/; do
     missing+=("drift")
   fi
 
-  # 17. banned phrases
+  # 17. banned phrases (only scan the body, not the anchor)
   for bp in "目前" "现在主流" "一般来说"; do
-    grep -qF "$bp" "$skill_md" && missing+=("banned:$bp")
+    echo "$body_content" | grep -qF "$bp" && missing+=("banned:$bp")
   done
 
   # 18. frontmatter complete
