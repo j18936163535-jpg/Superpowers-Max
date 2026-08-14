@@ -87,10 +87,15 @@ for skill_dir in "$SKILLS_DIR"/*/; do
     echo "$anchor_content" | grep -qF "$o" || missing+=("output:$o")
   done
 
-  # 16. drift check (anchor content matches _shared concat)
+  # 16. drift check (anchor content matches _shared concat).
+  # Drift is a separate failure mode (spec §7.1 exit code 2), not a generic
+  # "missing rule" — track it on its own counter so we can report it
+  # distinctly and exit 2 instead of folding it into FAIL/1.
   anchor_hash="$(echo "$anchor_content" | shasum -a 256 | awk '{print $1}')"
+  drift_detected=0
   if [ "$anchor_hash" != "$SHARED_HASH" ]; then
-    missing+=("drift")
+    DRIFT=$((DRIFT+1))
+    drift_detected=1
   fi
 
   # 17. banned phrases (only scan the body, not the anchor)
@@ -108,20 +113,29 @@ for skill_dir in "$SKILLS_DIR"/*/; do
     missing+=("gates=0")
   fi
 
-  if [ ${#missing[@]} -eq 0 ]; then
+  if [ ${#missing[@]} -eq 0 ] && [ "$drift_detected" -eq 0 ]; then
     printf '%-40s %-6s %s\n' "$skill_name" "PASS" "gates=$gate_count 9/9"
     PASS=$((PASS+1))
+  elif [ ${#missing[@]} -eq 0 ] && [ "$drift_detected" -eq 1 ]; then
+    # Drift is its own status (exit 2), distinct from FAIL.
+    printf '%-40s %-6s %s\n' "$skill_name" "DRIFT" "gates=$gate_count"
   else
+    # Drift + other issues → still FAIL (the other issues are the real bug);
+    # DRIFT counter has already been incremented above.
     printf '%-40s %-6s %s\n' "$skill_name" "FAIL" "gates=$gate_count ${missing[*]}"
     FAIL=$((FAIL+1))
   fi
 done
 
 echo ""
-echo "TOTAL: $((PASS+FAIL)) skills, $PASS pass, $FAIL fail"
+echo "TOTAL: $((PASS+FAIL+DRIFT)) skills, $PASS pass, $FAIL fail, DRIFT: $DRIFT"
 
-# Exit codes
+# Exit codes (spec §7.1): 0 = all pass, 1 = some fail, 2 = DRIFT (no hard fails).
+# FAIL takes precedence over DRIFT — a real rule violation must surface as 1.
 if [ "$FAIL" -gt 0 ]; then
   exit 1
+fi
+if [ "$DRIFT" -gt 0 ]; then
+  exit 2
 fi
 exit 0
