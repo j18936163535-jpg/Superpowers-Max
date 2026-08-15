@@ -49,6 +49,25 @@ cd superpowers-max
 Plugin descriptors under `.claude-plugin/`, `.codex-plugin/`, etc. let platforms pick this up
 automatically.
 
+## MiniMax Code (Desktop) install
+
+MiniMax Code's Plugin V1 spec forbids multi-vendor manifests in one package, so this repo ships
+the MiniMax Code plugin as a self-contained sub-package under `minimax/`. To install:
+
+1. Open MiniMax Code → "市场" → "创建" → "导入插件" → "从 GitHub 导入"
+2. Paste: `https://github.com/j18936163535-jpg/Superpowers-Max/tree/main/minimax`
+3. Click 预览 → 导入
+
+After any change to a skill under `skills/`, re-sync the MiniMax sub-package:
+
+```bash
+bash scripts/sync-minimax.sh    # mirrors skills/ → minimax/skills/ + verifies manifest
+```
+
+The script will warn if a new skill was added to `skills/` but is not yet listed in
+`minimax/.minimax-plugin/plugin.json` — add the new entry to the manifest's `skills` array,
+then re-push.
+
 ## License
 
 MIT — see `LICENSE`.
