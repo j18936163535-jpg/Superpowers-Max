@@ -1,13 +1,21 @@
 #!/usr/bin/env bash
-# sync-minimax.sh — Mirror skills/ into the MiniMax Plugin V1 subdir.
+# sync-minimax.sh — Mirror skills/ into the MiniMax Plugin V1 subdir AND the
+# local install dir.
 #
 # Plugin V1 forbids multi-vendor manifests in one package, so the MiniMax
 # plugin lives in its own subdir (minimax/) and is kept in sync via this
 # script. Run after any change to skills/ (add/remove/rewrite a skill).
 #
-# Usage:
-#   cd /path/to/superpowers-max
-#   bash scripts/sync-minimax.sh
+# One-shot workflow:
+#   bash scripts/sync-minimax.sh       # sync repo subdir + local install
+#   git add . && git commit && git push
+#
+# Local install target (overridable via env):
+#   SUPERPOWERS_MAX_LOCAL_PLUGIN_DIR
+#     default: $DATA_DIR/plugins/superpowers-max
+#              (DATA_DIR resolves to /Users/lala/.minimax by default)
+#
+# Skip local install with:  SYNC_MINIMAX_LOCAL=0 bash scripts/sync-minimax.sh
 #
 # Exit codes:
 #   0  sync succeeded, no drift, manifest matches disk
@@ -20,6 +28,17 @@ REPO_ROOT="$(pwd)"
 SOURCE_DIR="$REPO_ROOT/skills"
 TARGET_DIR="$REPO_ROOT/minimax/skills"
 MANIFEST="$REPO_ROOT/minimax/.minimax-plugin/plugin.json"
+
+# Default local install dir follows MiniMax Code's data dir convention.
+# Allow override via env for users with non-default data dirs.
+if [ -n "${SUPERPOWERS_MAX_LOCAL_PLUGIN_DIR:-}" ]; then
+  LOCAL_DIR="$SUPERPOWERS_MAX_LOCAL_PLUGIN_DIR"
+else
+  # MiniMax Code's active data dir (matches runtime-data-context: activeDataDir).
+  # Fall back to ~/.minimax if the env var isn't set (e.g. in CI).
+  DATA_DIR="${Mavis_DATA_DIR:-$HOME/.minimax}"
+  LOCAL_DIR="$DATA_DIR/plugins/superpowers-max"
+fi
 
 # --- preconditions ---
 if [ ! -d "$TARGET_DIR" ]; then
@@ -84,6 +103,30 @@ if command -v jq >/dev/null 2>&1; then
   echo "[sync] manifest integrity checked"
 else
   echo "[sync] jq not installed, skipping manifest integrity check"
+fi
+
+# --- mirror minimax/ -> local install (Plugin V1 official path) ---
+if [ "${SYNC_MINIMAX_LOCAL:-1}" = "0" ]; then
+  echo "[sync] local install sync skipped (SYNC_MINIMAX_LOCAL=0)"
+else
+  # Make sure parent dir exists, then copy CONTENTS of minimax/ into LOCAL_DIR
+  # (not minimax/ as a wrapper — LOCAL_DIR IS the plugin root per V1 spec).
+  mkdir -p "$LOCAL_DIR"
+  # Wipe stale skills/* dirs from the local install before re-copying
+  # (handles the case where a skill was removed from the canonical tree).
+  if [ -d "$LOCAL_DIR/skills" ]; then
+    for d in "$LOCAL_DIR/skills"/*/; do
+      [ -d "$d" ] || continue
+      name="$(basename "$d")"
+      [ "$name" = "_shared" ] && continue
+      if [ ! -d "$SOURCE_DIR/$name" ]; then
+        rm -rf "$d"
+        echo "[sync] removed stale local skill: $name"
+      fi
+    done
+  fi
+  cp -R "$REPO_ROOT/minimax/." "$LOCAL_DIR/"
+  echo "[sync] pushed to local install: $LOCAL_DIR"
 fi
 
 echo "[sync] done."

@@ -52,21 +52,37 @@ automatically.
 ## MiniMax Code (Desktop) install
 
 MiniMax Code's Plugin V1 spec forbids multi-vendor manifests in one package, so this repo ships
-the MiniMax Code plugin as a self-contained sub-package under `minimax/`. To install:
+the MiniMax Code plugin as a self-contained sub-package under `minimax/`.
 
-1. Open MiniMax Code → "市场" → "创建" → "导入插件" → "从 GitHub 导入"
-2. Paste: `https://github.com/j18936163535-jpg/Superpowers-Max/tree/main/minimax`
-3. Click 预览 → 导入
-
-After any change to a skill under `skills/`, re-sync the MiniMax sub-package:
+**Recommended path — local install** (auto-detected, no UI steps):
 
 ```bash
-bash scripts/sync-minimax.sh    # mirrors skills/ → minimax/skills/ + verifies manifest
+cd /path/to/superpowers-max
+bash scripts/sync-minimax.sh    # mirrors skills/ → minimax/skills/ AND
+                                # mirrors minimax/ → ~/.minimax/plugins/superpowers-max
+```
+
+After the script finishes, MiniMax Code's automatic local-plugin rescan picks up the package at
+`~/.minimax/plugins/superpowers-max/` within a few seconds. Open the "管理" tab to confirm it
+appears.
+
+**Optional — GitHub subdir import** (currently flaky in MiniMax Code Desktop's importer, kept here
+for future versions that may support it): import URL
+`https://github.com/j18936163535-jpg/Superpowers-Max/tree/main/minimax`.
+
+### Ongoing maintenance
+
+After any change to a skill under `skills/`, run **one** command to keep the local install fresh
+and the in-repo sub-package in sync:
+
+```bash
+bash scripts/sync-minimax.sh && git add . && git commit -m "..." && git push
 ```
 
 The script will warn if a new skill was added to `skills/` but is not yet listed in
 `minimax/.minimax-plugin/plugin.json` — add the new entry to the manifest's `skills` array,
-then re-push.
+then re-run. Set `SYNC_MINIMAX_LOCAL=0` to skip the local install step (e.g. in CI).
+Override the local install path with `SUPERPOWERS_MAX_LOCAL_PLUGIN_DIR=/some/path`.
 
 ## License
 
