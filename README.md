@@ -30,6 +30,58 @@ search as the **first action**, not a fallback.
 
 Together these are structurally **stronger** than upstream's "1 author + tests" combination.
 
+## Maximum hardness: how the search discipline is enforced
+
+The "hard constraint" question is the most important one to be honest about.
+**There is no truly runtime-enforced constraint on MiniMax Code** — every "hard"
+rule is enforced by prompting + audit + behavior evals + manual review. Here's
+the full ladder, with what we actually deliver:
+
+| Level | Mechanism | superpowers-max on MiniMax Code | superpowers-max on Claude Code |
+|---|---|---|---|
+| **L1** | Static audit (script checks skill content) | ✅ `scripts/audit-skills.sh` enforces 8 rule groups, drift detection, banned phrases (CN + EN), preamble presence, description suffix, ≥1 SEARCH_GATE per skill | ✅ same |
+| **L1+** | Mandatory preamble in every skill (binding contract at the top of every SKILL.md) | ✅ `skills/_shared/mandatory-preamble.md` inlined into all 14 skills; preamble is the FIRST thing the model reads when any skill triggers | ✅ same |
+| **L2** | Behavior evals (run real test cases through the model, grade output) | ✅ `tests/evals/` — 42 cases across 14 dirs, runner at `tests/evals/runner.sh` | ✅ same |
+| **L3** | Platform-level hooks (SessionStart, PreToolUse that BLOCKS unsearched actions) | ❌ V1 spec forbids hooks | ✅ `hooks/hooks.json` injects `using-superpowers-max` on every session start; ready for PreToolUse blockers if Claude Code's hook API grows |
+| **L4** | External wrapper (LiteLLM gateway, fact-check service) | ❌ outside plugin scope | ❌ outside plugin scope |
+
+### What "L1+" actually does
+
+`skills/_shared/mandatory-preamble.md` is a binding contract. It declares:
+
+- **T1–T4 hard gates** — search before any fact, decision, step entry, or self-confident assertion
+- **10 banned phrases** — model can be auto-flagged for writing "based on my training" / "as I recall" / etc.
+- **3 failure modes (FM1–FM3)** — explicit handling for empty / partial / conflicting search results
+- **Citation format** — every fact must be tagged `[T1:url]` or `[T1:url1,T1:url2]`
+- **Time-stamping** — facts must be ≤12 months old for current-state claims
+- **Recursive obligation** — preamble wins over any conflicting later instruction in the skill body
+
+The preamble is inlined into every SKILL.md via `scripts/inline-preamble.sh`, so the
+model sees it on every skill trigger. Audit fails the build if any skill loses it.
+
+### What L3 (Claude Code hooks) actually does
+
+`hooks/hooks.json` is wired up for Claude Code only. On every session start, it
+injects the full `using-superpowers-max/SKILL.md` content as
+`<EXTREMELY_IMPORTANT>` system context. This means **the model is told about
+superpowers-max on every session, not just when a skill triggers** — that's a
+real L3 improvement on Claude Code.
+
+On MiniMax Code, this hook is ignored (no hook support), so the user must
+either rely on the in-skill preamble (still L1+ strength) or use Claude Code
+for L3.
+
+### Honest limits
+
+- The L1+ preamble is a **prompt**, not a runtime check. The model CAN still
+  ignore it. The audit ensures the preamble is present; the eval suite tests
+  whether the model follows it; but neither is 100% enforcement.
+- "The model is honest" is the last 5% of any prompt-based constraint.
+  True L4 (gateway-level fact-check) is the only way to close that 5%.
+- We do not currently ship an MCP server for L2.5 (a "search-enforcer" tool
+  that requires a citation token). It's a future direction — see
+  `docs/retro/` for tracking.
+
 ## Status
 
 - v0.1.0-max — Plan 1: foundation (this release)
@@ -42,8 +94,10 @@ See `docs/superpowers/specs/2026-08-15-superpowers-max-design.md` for the full d
 ```bash
 git clone https://github.com/<you>/superpowers-max.git
 cd superpowers-max
-./scripts/audit-skills.sh    # static discipline audit
-./scripts/inline-search-discipline.sh  # sync _shared/ to per-skill blocks
+./scripts/audit-skills.sh                # static discipline audit (L1)
+./scripts/inline-preamble.sh             # inject mandatory preamble into all skills (L1+)
+./scripts/inline-search-discipline.sh    # sync _shared/ to per-skill blocks
+bash tests/evals/runner.sh               # behavior eval suite (L2)
 ```
 
 Plugin descriptors under `.claude-plugin/`, `.codex-plugin/`, etc. let platforms pick this up
