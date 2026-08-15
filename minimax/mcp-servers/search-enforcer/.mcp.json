@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "mcpServers": {
+    "search-enforcer": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["-u", "./mcp-servers/search-enforcer/server.py"],
+      "env": {},
+      "description": "Mints citation tokens (vst-...) for verified_search calls. Use before stating any fact under the superpowers-max search-discipline regime. The returned token must appear verbatim in the response next to the cited claim.",
+      "timeout": 10000
+    }
+  }
+}

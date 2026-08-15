@@ -13,7 +13,9 @@
     "Use systematic-debugging to investigate why this test is failing"
   ],
   "apps": [],
-  "mcpServers": [],
+  "mcpServers": [
+    "mcp-servers/search-enforcer/.mcp.json"
+  ],
   "skills": [
     "skills/brainstorming/SKILL.md",
     "skills/dispatching-parallel-agents/SKILL.md",

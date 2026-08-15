@@ -101,6 +101,20 @@ if command -v jq >/dev/null 2>&1; then
     fi
   done
   echo "[sync] manifest integrity checked"
+
+# --- mirror mcp-servers/ if it exists (V1 MCP capability) ---
+# Anything under mcp-servers/ in the repo root is copied verbatim into
+# minimax/mcp-servers/. This keeps the MCP server source-of-truth in the
+# repo root (so other platforms can use it too) while also keeping the
+# V1 sub-package self-contained.
+if [ -d "$REPO_ROOT/mcp-servers" ]; then
+  mkdir -p "$REPO_ROOT/minimax/mcp-servers"
+  # Wipe + recopy (idempotent; handles removed servers)
+  rm -rf "$REPO_ROOT/minimax/mcp-servers"/*
+  cp -R "$REPO_ROOT/mcp-servers/." "$REPO_ROOT/minimax/mcp-servers/"
+  mcp_count=$(find "$REPO_ROOT/minimax/mcp-servers" -name "*.mcp.json" | wc -l | tr -d ' ')
+  echo "[sync] mirrored $mcp_count MCP server(s) into minimax/mcp-servers/"
+fi
 else
   echo "[sync] jq not installed, skipping manifest integrity check"
 fi

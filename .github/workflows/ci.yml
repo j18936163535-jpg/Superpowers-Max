@@ -18,7 +18,7 @@ jobs:
         run: bash scripts/inline-search-discipline.sh
 
   tests:
-    name: tests (TDD + evals)
+    name: tests (TDD + evals + MCP)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +26,8 @@ jobs:
         run: bash scripts/tests/test-inline-search-discipline.sh
       - name: Run audit-skills test
         run: bash scripts/tests/test-audit-skills.sh
+      - name: Run MCP search-enforcer test
+        run: bash scripts/tests/test-mcp-search-enforcer.sh
       - name: Run evals schema check
         run: bash tests/evals/runner.sh
 
