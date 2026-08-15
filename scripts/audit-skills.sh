@@ -51,13 +51,30 @@ for skill_dir in "$SKILLS_DIR"/*/; do
     continue
   fi
 
-  # Body = everything OUTSIDE the anchor block. The banned-phrase check must
-  # run against the body only, because the shared content itself contains
-  # "目前" / "现在主流" / "一般来说" as documented examples of phrases to avoid.
+  # Extract MANDATORY_PREAMBLE block (top, after frontmatter, before everything else).
+  preamble_content="$(
+    awk '
+      /^<MANDATORY_PREAMBLE>$/ { flag = 1; next }
+      /^<\/MANDATORY_PREAMBLE>$/ { flag = 0; next }
+      flag
+    ' "$skill_md" || true
+  )"
+
+  if [ -z "$preamble_content" ]; then
+    missing+=("mandatory_preamble:missing")
+  fi
+
+  # Body = everything OUTSIDE both the SEARCH_DISCIPLINE block AND the
+  # MANDATORY_PREAMBLE block. The banned-phrase check must run against the
+  # body only, because the shared content and the preamble contain
+  # "目前" / "现在主流" / "一般来说" / "based on my training" as documented
+  # examples of phrases to avoid.
   body_content="$(
     awk '
-      /^<SEARCH_DISCIPLINE>$/ { flag = 1; next }
-      /^<\/SEARCH_DISCIPLINE>$/ { flag = 0; next }
+      /^<SEARCH_DISCIPLINE>$/    { flag = 1; next }
+      /^<\/SEARCH_DISCIPLINE>$/  { flag = 0; next }
+      /^<MANDATORY_PREAMBLE>$/   { flag = 1; next }
+      /^<\/MANDATORY_PREAMBLE>$/ { flag = 0; next }
       !flag
     ' "$skill_md" || true
   )"
@@ -98,12 +115,39 @@ for skill_dir in "$SKILLS_DIR"/*/; do
     drift_detected=1
   fi
 
-  # 17. banned phrases (only scan the body, not the anchor)
+  # 17. preamble contains the 4 hard-gate triggers (T1-T4)
+  for pt in "T1. Search before every fact" "T2. Search before every decision" \
+            "T3. Search at step entry" "T4. Search before every self-confident"; do
+    echo "$preamble_content" | grep -qF "$pt" || missing+=("preamble:$pt")
+  done
+
+  # 18. preamble contains the failure modes (FM1-FM3) and citation format
+  for pf in "FM1" "FM2" "FM3" "Citation format" "Banned phrases"; do
+    echo "$preamble_content" | grep -qF "$pf" || missing+=("preamble:$pf")
+  done
+
+  # 19. description has the standard suffix pointing to MANDATORY_PREAMBLE
+  skill_desc="$(
+    awk '/^---$/{c++; next} c==1 && /^description:/{sub(/^description:[[:space:]]*/,""); print; exit}' "$skill_md"
+  )"
+  if ! echo "$skill_desc" | grep -qF "MANDATORY_PREAMBLE"; then
+    missing+=("description:suffix")
+  fi
+
+  # 20. banned phrases — Chinese (body only)
   for bp in "目前" "现在主流" "一般来说"; do
     echo "$body_content" | grep -qF "$bp" && missing+=("banned:$bp")
   done
 
-  # 18. frontmatter complete
+  # 21. banned phrases — English (body only, preamble-immune via stripping)
+  for bp in "based on my training" "as I recall" "from what I know" \
+            "in my experience" "the standard approach is" "this is well-known"; do
+    if echo "$body_content" | grep -qiF "$bp"; then
+      missing+=("banned-en:$bp")
+    fi
+  done
+
+  # 22. frontmatter complete
   head -5 "$skill_md" | grep -qE "^name: " || missing+=("frontmatter:name")
   head -5 "$skill_md" | grep -qE "^description: " || missing+=("frontmatter:description")
 

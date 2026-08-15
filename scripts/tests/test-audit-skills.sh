@@ -73,13 +73,60 @@ build_fixture_with_shared_anchor() {
   } > "$dst"
 }
 
+# Helper: inject the MANDATORY_PREAMBLE block at the top of a skill (after
+# frontmatter) and append the standard suffix to its description. This keeps
+# the fixtures compatible with the L1+ audit checks (preamble + suffix).
+inject_preamble_and_suffix() {
+  local skill_md="$1"
+  python3 - "$skill_md" <<'PYEOF'
+import sys, re
+p = sys.argv[1]
+with open(p) as f:
+    c = f.read()
+SUFFIX = ' Search discipline is MANDATORY: see <MANDATORY_PREAMBLE> at top of this skill before any response.'
+PREAMBLE_PATH = '/Users/lala/.minimax-agent-cn/projects/superpowers-max/skills/_shared/mandatory-preamble.md'
+try:
+    with open(PREAMBLE_PATH) as f:
+        preamble = f.read()
+except FileNotFoundError:
+    sys.exit(0)
+new_block = f'<MANDATORY_PREAMBLE>\n{preamble}\n</MANDATORY_PREAMBLE>'
+# Add suffix to description if missing
+m = re.search(r'^(description:\s*.*?)$', c, re.M)
+if m and 'MANDATORY_PREAMBLE' not in m.group(1):
+    c = c[:m.start()] + m.group(1) + SUFFIX + c[m.end():]
+# Inject preamble after frontmatter if not already present as a block.
+# Use a stricter check: the opening <MANDATORY_PREAMBLE> must be on its own line
+# (the description-suffix text contains it inline, so a substring check is too loose).
+if not re.search(r'^<MANDATORY_PREAMBLE>$', c, re.M):
+    fm = re.match(r'\A---\n(.*?)\n---\n', c, re.DOTALL)
+    if fm:
+        c = c[:fm.end()] + '\n' + new_block + '\n\n' + c[fm.end():]
+    else:
+        c = new_block + '\n\n' + c
+with open(p, 'w') as f:
+    f.write(c)
+PYEOF
+}
+
+# Helper: in-place, inject preamble + suffix into a fixture's SKILL.md, then
+# run build_fixture_with_shared_anchor on it. Used to keep all fixtures
+# compliant with the L1+ audit checks.
+build_compliant_fixture() {
+  local src="$1" dst="$2"
+  # First substitute the SEARCH_DISCIPLINE anchor
+  build_fixture_with_shared_anchor "$src" "$dst"
+  # Then inject MANDATORY_PREAMBLE and append the suffix
+  inject_preamble_and_suffix "$dst"
+}
+
 # drift-clean fixture: full anchor (from _shared), 1 <SEARCH_GATE>, clean body.
 # Exercises BOTH the drift fix (anchor content must hash-match _shared) AND
 # the anchor-banned-phrase fix (anchor contains "目前" / "现在主流" / "一般来说"
 # as documented examples — the audit must ignore the anchor for banned-phrase).
 # Expected: PASS.
 mkdir -p "$TMPDIR/skills/drift-clean-skill"
-build_fixture_with_shared_anchor \
+build_compliant_fixture \
   "$REPO_ROOT/scripts/tests/fixtures/audit-drift-clean/SKILL.md" \
   "$TMPDIR/skills/drift-clean-skill/SKILL.md"
 
@@ -87,7 +134,7 @@ build_fixture_with_shared_anchor \
 # body contains the banned phrase "目前". Expected: FAIL with "banned:目前"
 # ONLY (no drift, no other banned phrases, no other missing items).
 mkdir -p "$TMPDIR/skills/body-banned-skill"
-build_fixture_with_shared_anchor \
+build_compliant_fixture \
   "$REPO_ROOT/scripts/tests/fixtures/audit-body-banned/SKILL.md" \
   "$TMPDIR/skills/body-banned-skill/SKILL.md"
 
@@ -106,7 +153,7 @@ cp "$REPO_ROOT/skills/_shared/"*.md "$DRIFT_TMP/skills/_shared/"
 # 9 trigger/source/failure/output rules are present), then the stale-marker
 # line stays in the anchor, making its hash diverge from cat _shared/*.md.
 mkdir -p "$DRIFT_TMP/skills/drift-skill"
-build_fixture_with_shared_anchor \
+build_compliant_fixture \
   "$REPO_ROOT/scripts/tests/fixtures/audit-drift/SKILL.md" \
   "$DRIFT_TMP/skills/drift-skill/SKILL.md"
 drift_output="$(cd "$DRIFT_TMP" && SKILLS_DIR="$DRIFT_TMP/skills" "$SCRIPT" 2>&1)" && drift_rc=0 || drift_rc=$?
