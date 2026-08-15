@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "name": "superpowers-max",
+  "displayName": "Superpowers-Max",
+  "version": "1.0.0-max",
+  "description": "Hardened superpowers skills with mandatory search discipline to compensate for LLM training-data gaps (anti-LLM-centrism).",
+  "author": "superpowers-max contributors",
+  "icon": "icon.png",
+  "category": "Code",
+  "exampleQueries": [
+    "Use brainstorming to explore this feature idea before writing code",
+    "Use test-driven-development to add a new function with tests first",
+    "Use systematic-debugging to investigate why this test is failing"
+  ],
+  "apps": [],
+  "mcpServers": [],
+  "skills": [
+    "skills/brainstorming/SKILL.md",
+    "skills/dispatching-parallel-agents/SKILL.md",
+    "skills/executing-plans/SKILL.md",
+    "skills/finishing-a-development-branch/SKILL.md",
+    "skills/receiving-code-review/SKILL.md",
+    "skills/requesting-code-review/SKILL.md",
+    "skills/subagent-driven-development/SKILL.md",
+    "skills/systematic-debugging/SKILL.md",
+    "skills/test-driven-development/SKILL.md",
+    "skills/using-git-worktrees/SKILL.md",
+    "skills/using-superpowers-max/SKILL.md",
+    "skills/verification-before-completion/SKILL.md",
+    "skills/writing-plans/SKILL.md",
+    "skills/writing-skills/SKILL.md"
+  ]
+}
